@@ -26,6 +26,7 @@ using Newtonsoft.Json;
 using Microsoft.Azure.DigitalTwins.Parser;
 using Newtonsoft.Json.Linq;
 using Azure.DigitalTwins.Core;
+using Windows.UI.Composition;
 
 // https://docs.microsoft.com/en-us/windows/uwp/design/layout/
 
@@ -36,11 +37,14 @@ namespace OPCUA2DTDL
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private OpcUaClient client;
-        private OpcUaNodeList DataSource = new OpcUaNodeList();
-        private static List<DtdlInterface> InterfaceList = new List<DtdlInterface>();      // List of DTDL Interfaces
-        private static string endpointURL;
-        private OpcUaNodeList variables = new OpcUaNodeList();
+        private const string _appName = "OPCUA2DTDL";
+        private OpcUaClient _client;
+        private OpcUaNodeList _dataSource = new OpcUaNodeList();
+        private static List<DtdlInterface> _interfaceList = new List<DtdlInterface>();      // List of DTDL Interfaces
+        private static string _endpointURL;
+        private OpcUaNodeList _children = new OpcUaNodeList();
+        private bool _isExpandedDtdlMode = false;
+        private bool _autoAccept = true;
 
         public MainPage()
         {
@@ -54,7 +58,9 @@ namespace OPCUA2DTDL
             btnConnect.IsEnabled = false;
             ProgressRing.IsActive = true;
             this.OpcUaNodeTree.RootNodes.Clear();
-            endpointURL = txtBoxOpcServer.Text;
+            _endpointURL = txtBoxOpcServer.Text;
+            _dataSource.Clear();
+            _children.Clear();
 
             try
             {
@@ -62,7 +68,7 @@ namespace OPCUA2DTDL
 
                 // Hack to get the treeview to refresh. 
                 // ObservableCollection with built-in INotifyCollectionChanged doesn't appear to work.
-                this.OpcUaNodeTree.ItemsSource = DataSource;
+                this.OpcUaNodeTree.ItemsSource = _dataSource;
 
                 NotifyUser("Finished browsing nodes");
             }
@@ -70,45 +76,6 @@ namespace OPCUA2DTDL
             {
                 NotifyUser(ex.Message);
             }
-
-
-
-            /*
-            int stopTimeout = Timeout.Infinite;
-            bool autoAccept = true;
-            string endpointURL = txtBoxOpcServer.Text;
-            this.OpcUaNodeTree.RootNodes.Clear();
-
-            OpcUaClient client = new OpcUaClient(endpointURL, autoAccept, stopTimeout);
-
-            try
-            {
-
-
-                NotifyUser("Connecting...");
-
-                Session opcsession = await client.Connect();
-
-                if (opcsession.Connected)
-                {
-                    NotifyUser("Connected");
-
-                    // https://docs.microsoft.com/en-us/windows/winui/api/microsoft.ui.xaml.controls.treeview?view=winui-2.5
-                    DataSource = await client.Browse();
-
-                    // Hack to get the treeview to refresh. 
-                    // ObservableCollection with built-in INotifyCollectionChanged doesn't appear to work.
-                    this.OpcUaNodeTree.ItemsSource = DataSource;
-
-                }
-
-  
-            }
-            catch (Exception ex)
-            {
-                NotifyUser(ex.Message);
-            }
-            */
 
             btnConnect.IsEnabled = true;
             ProgressRing.IsActive = false;
@@ -119,76 +86,68 @@ namespace OPCUA2DTDL
         {
 
             int stopTimeout = Timeout.Infinite;
-            bool autoAccept = true;
 
-            //OpcUaClient client = new OpcUaClient(endpointURL, autoAccept, stopTimeout);
-            client = new OpcUaClient(endpointURL, autoAccept, stopTimeout);
+            _client = new OpcUaClient(_endpointURL, _autoAccept, stopTimeout, _appName);
 
             NotifyUser("Connecting...");
 
-            Session opcsession = await client.Connect();
+            Session opcsession = await _client.Connect();
 
             if (opcsession.Connected)
             {
+
                 NotifyUser("Connected");
 
                 NotifyUser("Browsing nodes...");
 
                 // https://docs.microsoft.com/en-us/windows/winui/api/microsoft.ui.xaml.controls.treeview?view=winui-2.5
-                DataSource = await client.Browse();
+                _dataSource = await _client.Browse();
 
             }
 
-
         }
-
 
         private void OpcUaNodeTree_ItemInvoked(muxc.TreeView sender, muxc.TreeViewItemInvokedEventArgs args)
         {
 
             OpcUaNode selectedNode = (OpcUaNode)args.InvokedItem;
 
-            // Variables must be converted to property and telemetry on the parent
-            if (selectedNode.NodeClass != "Variable")
+            //List<NodeReferenceData> nodeRefs = client.BrowseReferences(selectedNode.NodeId);
+
+            // Display the node's properties in the console window when user clicks on the node
+            NotifyUser("**********************************************************************************************************************");
+            NotifyUser($"BrowseName: {selectedNode.BrowseName}");
+            NotifyUser($"DisplayName: {selectedNode.DisplayName}");
+            NotifyUser($"NodeId: {selectedNode.NodeId}");
+            NotifyUser($"NodeClass: {selectedNode.NodeClass}");
+            NotifyUser($"DataType: {selectedNode.DataType}");
+            NotifyUser($"Child Count: {selectedNode.Children.Count}");
+            NotifyUser($"ReferenceTypeId: {selectedNode.ReferenceTypeId} {OpcUaClient.GetNameFromNodeId(selectedNode.ReferenceTypeId)}");
+            NotifyUser($"TypeDefinition: {selectedNode.TypeDefinition} {OpcUaClient.GetNameFromNodeId(selectedNode.TypeDefinition)}");
+            NotifyUser("**********************************************************************************************************************");
+
+            // If text box contains json, load json from text box into list
+            if (txtBoxDTDL.Text.Length != 0)
             {
-
-                // If text box contains json, load json from text box into list
-                if (txtBoxDTDL.Text.Length != 0)
-                {
-                    InterfaceList.AddRange(JsonConvert.DeserializeObject<List<DtdlInterface>>(txtBoxDTDL.Text));
-                }
-
-
-                variables.Clear();
-
-                foreach (var opcNode in DataSource)
-                {
-                    // Check if Object has Variables underneath it.
-                    GetVariablesForObjectNode(opcNode, selectedNode);
-                }
-
-                // If node has variables underneath it, they will be converted to Telemetry or Property types.
-                DtdlInterface dtdl = DTDL.GenerateDTDL(selectedNode, variables);
-
-                InterfaceList.Add(dtdl);
-
-                // Display list in text box
-                txtBoxDTDL.Text = JsonConvert.SerializeObject(InterfaceList, Formatting.Indented);
-
-                // Clear list
-                InterfaceList.Clear();
-
+                _interfaceList.AddRange(JsonConvert.DeserializeObject<List<DtdlInterface>>(txtBoxDTDL.Text));
             }
-            else
-            {
 
-                NotifyUser($"{selectedNode.DisplayName} is a {selectedNode.NodeClass}. Select this node's parent.");
+            // Generate the DTDL for selected node
+            DtdlInterface dtdl = DTDL.GenerateDTDL(selectedNode, _isExpandedDtdlMode);
 
-            }
+            // Add DTDL to the list of Interfaces
+            _interfaceList.Add(dtdl);
+
+            // Display list in text box
+            txtBoxDTDL.Text = JsonConvert.SerializeObject(_interfaceList, Formatting.Indented);
+
+            // Clear list
+            _interfaceList.Clear();
 
         }
 
-        private void GetVariablesForObjectNode(OpcUaNode currentNode, OpcUaNode targetNode)
+        /*
+        private void GetChildNodes(OpcUaNode currentNode, OpcUaNode targetNode)
         {
 
             if (currentNode.NodeId == targetNode.NodeId)
@@ -199,10 +158,10 @@ namespace OPCUA2DTDL
                 for (int i=0; i < numOfChildren; i++)
                 {
 
-                    if(IsVariable(currentNode.Children[i]))
+                    if(IsVariableOrMethod(currentNode.Children[i]))
                     {
 
-                        variables.Add(currentNode.Children[i]);
+                        children.Add(currentNode.Children[i]);
 
                     }
 
@@ -217,17 +176,19 @@ namespace OPCUA2DTDL
                 for (int i = 0; i < numOfChildren; i++)
                 {
 
-                    GetVariablesForObjectNode(currentNode.Children[i], targetNode);
+                    GetChildNodes(currentNode.Children[i], targetNode);
 
                 }
 
             }
 
         }
+        */
 
-        private bool IsVariable(OpcUaNode node)
+        /*
+        private bool IsVariableOrMethod(OpcUaNode node)
         {
-            if(node.NodeClass == "Variable")
+            if(node.NodeClass == "Variable" || node.NodeClass == "Method")
             {
                 return true;
             }
@@ -236,6 +197,7 @@ namespace OPCUA2DTDL
                 return false;
             }
         }
+        */
 
         // Display message in console textbox
         public void NotifyUser(string strMessage)
@@ -244,42 +206,55 @@ namespace OPCUA2DTDL
             // Otherwise, schedule a task on the UI thread to perform the update.
             if (Dispatcher.HasThreadAccess)
             {
+
                 UpdateStatus(strMessage);
+
             }
             else
             {
+
                 var task = Dispatcher.RunAsync(CoreDispatcherPriority.Low, () => UpdateStatus(strMessage));
+
             }
         }
 
         private void UpdateStatus(string strMessage)
         {
+
             txtBoxConsole.Text += strMessage + "\n";
+
         }
 
         // Hack to allow status textbox to autoscroll to bottom
         private void txtBoxStatus_TextChanged(object sender, TextChangedEventArgs e)
         {
+
             var grid = (Grid)VisualTreeHelper.GetChild(txtBoxConsole, 0);
+
             for (var i = 0; i <= VisualTreeHelper.GetChildrenCount(grid) - 1; i++)
             {
+
                 object obj = VisualTreeHelper.GetChild(grid, i);
+
                 if (!(obj is ScrollViewer)) continue;
+
                 ((ScrollViewer)obj).ChangeView(0.0f, ((ScrollViewer)obj).ExtentHeight, 1.0f);
+
                 break;
+
             }
+
         }
 
         private void btnValidate_Click(object sender, RoutedEventArgs e)
         {
+
             NotifyUser("Validating DTDL...");
 
             try
             {
-                string json = txtBoxDTDL.Text.ToString();
 
-                // Serialize to string
-                //string json = JsonConvert.SerializeObject(InterfaceList);
+                string json = txtBoxDTDL.Text.ToString();
 
                 ModelParser modelParser = new ModelParser();
 
@@ -290,6 +265,7 @@ namespace OPCUA2DTDL
                 IReadOnlyDictionary<Dtmi, DTEntityInfo> parseTask = modelParser.ParseAsync(model).GetAwaiter().GetResult();
 
                 NotifyUser($"Validation passed");
+
             }
             catch (ParsingException pe)
             {
@@ -321,8 +297,10 @@ namespace OPCUA2DTDL
 
         private void btnClear_Click(object sender, RoutedEventArgs e)
         {
+
             txtBoxDTDL.Text = "";
-            InterfaceList.Clear();
+            _interfaceList.Clear();
+
         }
 
         private void btnAdd_Click(object sender, RoutedEventArgs e)
@@ -331,18 +309,39 @@ namespace OPCUA2DTDL
             // If text box contains json, load json from text box into list
             if (txtBoxDTDL.Text.Length != 0)
             {
-                InterfaceList.AddRange(JsonConvert.DeserializeObject<List<DtdlInterface>>(txtBoxDTDL.Text));
+
+                _interfaceList.AddRange(JsonConvert.DeserializeObject<List<DtdlInterface>>(txtBoxDTDL.Text));
+
             }
 
             // Generate DTDL for selected tree node and add to list
-            var dtdl = DTDL.GenerateDTDL();
-            InterfaceList.Add(dtdl);
+            var dtdl = DTDL.GenerateSampleDTDL();
+            _interfaceList.Add(dtdl);
 
             // Display list in text box
-            txtBoxDTDL.Text = JsonConvert.SerializeObject(InterfaceList, Formatting.Indented);
+            txtBoxDTDL.Text = JsonConvert.SerializeObject(_interfaceList, Formatting.Indented);
 
             // Clear list
-            InterfaceList.Clear();
+            _interfaceList.Clear();
+
+        }
+
+        private void btnCollapsedExpandedToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (btnCollapsedExpandedToggle.IsChecked == true)
+            {
+
+                btnCollapsedExpandedToggle.Label = "Expanded DTDL";
+                _isExpandedDtdlMode = true;
+
+            }
+            else
+            {
+
+                btnCollapsedExpandedToggle.Label = "Collapsed DTDL";
+                _isExpandedDtdlMode = false;
+
+            }
 
         }
     }

@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using Opc.Ua;
 
 namespace OPCUA2DTDL.Models
 {
@@ -19,7 +20,8 @@ namespace OPCUA2DTDL.Models
         public string NodeClass { get; set; }
         public string NodeId { get; set; }
         public string DataType { get; set; }
-
+        public string ReferenceTypeId { get; set; }
+        public string TypeDefinition { get; set; }
         public ObservableCollection<OpcUaNode> Children { get; set; } = new ObservableCollection<OpcUaNode>();
 
         public override string ToString()

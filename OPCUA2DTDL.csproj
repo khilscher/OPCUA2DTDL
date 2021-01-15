@@ -125,6 +125,7 @@
     </Compile>
     <Compile Include="Models\DtdlModel.cs" />
     <Compile Include="Models\NodeModel.cs" />
+    <Compile Include="Models\NodeReferenceModel.cs" />
     <Compile Include="OpcUaClient.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

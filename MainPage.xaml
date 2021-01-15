@@ -26,14 +26,14 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column = "0" Grid.Row = "0" Grid.ColumnSpan="2" Orientation = "Horizontal">
-            <TextBox x:Name="txtBoxOpcServer" VerticalAlignment="Center" Text="opc.tcp://127.0.0.1:49320" TextWrapping="Wrap"  Width="622" Margin="20"/>
+            <TextBox x:Name="txtBoxOpcServer" VerticalAlignment="Center" Text="opc.tcp://desktop-lqpr8c3:62541/CodeGenServer" TextWrapping="Wrap"  Width="622" Margin="20"/>
             <Button x:Name="btnConnect" Content="Connect" VerticalAlignment="Center" Click="btnConnect_Click"/>
         </StackPanel>
 
         <Grid Grid.Column = "0" Grid.Row = "1" Grid.RowSpan="2">
 
                 <muxc:TreeView Name="OpcUaNodeTree" 
-                        ItemsSource="{x:Bind DataSource}" 
+                        ItemsSource="{x:Bind _dataSource}" 
                         Width="400" 
                         ItemInvoked="OpcUaNodeTree_ItemInvoked" 
                         CanDragItems="False">
@@ -50,18 +50,12 @@
 
 
             <CommandBar Grid.Column = "1" Grid.Row = "1" Background="Transparent" IsOpen="False" DefaultLabelPosition="Right" HorizontalAlignment="Left">
-            <AppBarButton Icon="Add" Label="Add" Click="btnAdd_Click"/>
-            <AppBarButton Icon="Clear" Label="Clear" Click="btnClear_Click"/>
-                <AppBarButton Icon="Share" Label="Validate DTDL" Click="btnValidate_Click"/>
+                <AppBarButton Icon="Add" Label="Add" Click="btnAdd_Click"/>
+                <AppBarButton Icon="Clear" Label="Clear" Click="btnClear_Click"/>
+                <AppBarButton Icon="Accept" Label="Validate DTDL" Click="btnValidate_Click"/>
                 <AppBarButton Icon="Upload" Label="Upload to ADT"/>
-                <CommandBar.SecondaryCommands>
-                        <AppBarButton Icon="Setting" Label="Settings">
-                            <AppBarButton.KeyboardAccelerators>
-                                <KeyboardAccelerator Modifiers="Control" Key="I" />
-                            </AppBarButton.KeyboardAccelerators>
-                        </AppBarButton>
-                    </CommandBar.SecondaryCommands>
-            </CommandBar>
+            <AppBarToggleButton x:Name="btnCollapsedExpandedToggle" Icon="BackToWindow" Label="Collapsed DTDL" Click="btnCollapsedExpandedToggle_Click"/>
+        </CommandBar>
 
             <TextBox x:Name="txtBoxDTDL" 
                     Text="" 
