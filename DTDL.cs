@@ -1,45 +1,67 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Build.Framework;
+﻿using System.Collections.Generic;
 using OPCUA2DTDL.Models;
-using Org.BouncyCastle.Asn1.Mozilla;
 
 namespace OPCUA2DTDL
 {
     class DTDL
     {
-        private static string _dtmiPrefix = "dtmi:com:example:";
+
         private static Dictionary<string, string> _map = new Dictionary<string, string>();  // Primitive schema map
 
-        public static DtdlInterface GenerateDTDL(OpcUaNode node, bool expandedDtdl)
+        /// <summary>
+        /// Generates a DTDL Interface from an OPC UA node
+        /// </summary>
+        /// <param name="node"></param>
+        /// <param name="expandedDtdlMode"></param>
+        /// <param name="dtmiPrefix"></param>
+        /// <returns></returns>
+        public static DtdlInterface GenerateDTDL(OpcUaNode node, bool expandedDtdlMode, string dtmiPrefix)
         {
+
             // Create schema mapping table
             CreateSchemaMap();
+
+            string name;
+
+            // If creating an Interface using an OPC UA Object instead of an ObjectType, 
+            // then lookup the TypeDefinition.
+            if (node.NodeClass == "Object")
+            {
+
+                name = OpcUaClient.GetTypeDefinition(node.TypeDefinition);
+
+            }
+            else
+            {
+
+                name = node.DisplayName;
+
+            }
 
             // Create Interface
             DtdlInterface dtdlInterface = new DtdlInterface
             {
-                Id = _dtmiPrefix + node.DisplayName + ";1",
+                Id = dtmiPrefix + name + ";1",
                 Type = "Interface",
-                DisplayName = node.DisplayName,
+                DisplayName = name,
                 Contents = new List<DtdlContents>(),
                 Comment = $"Derived from {node.NodeId}"
             };
 
             // Generate collapsed mode DTDL
-            if (expandedDtdl == false)
+            if (expandedDtdlMode == false)
             {
+
                 if (node.Children.Count > 0)
                 {
+
                     foreach (var child in node.Children)
                     {
 
                         // i=68 (PropertyType) maps to DTDL property
                         if (child.TypeDefinition == "i=68")
                         {
+
                             DtdlContents dtdlProperty = new DtdlContents
                             {
                                 Type = "Property",
@@ -48,11 +70,13 @@ namespace OPCUA2DTDL
                             };
 
                             dtdlInterface.Contents.Add(dtdlProperty);
+
                         }
 
                         // i=63 (BaseDataVariableType) maps to DTDL telemetry
                         if (child.TypeDefinition == "i=63")
                         {
+
                             DtdlContents dtdlTelemetry = new DtdlContents
                             {
                                 Type = "Telemetry",
@@ -61,11 +85,13 @@ namespace OPCUA2DTDL
                             };
 
                             dtdlInterface.Contents.Add(dtdlTelemetry);
+
                         }
 
                         // NodeClass == Method maps to DTDL command
                         if (child.NodeClass == "Method")
                         {
+
                             DtdlContents dtdlCommand = new DtdlContents
                             {
                                 Type = "Command",
@@ -73,9 +99,11 @@ namespace OPCUA2DTDL
                             };
 
                             dtdlInterface.Contents.Add(dtdlCommand);
+
                         }
 
                     }
+
                 }
 
                 if (node.Children.Count == 0)
@@ -84,6 +112,7 @@ namespace OPCUA2DTDL
                     // i=68 (PropertyType) maps to DTDL property
                     if (node.TypeDefinition == "i=68")
                     {
+
                         DtdlContents dtdlProperty = new DtdlContents
                         {
                             Type = "Property",
@@ -92,6 +121,7 @@ namespace OPCUA2DTDL
                         };
 
                         dtdlInterface.Contents.Add(dtdlProperty);
+
                     }
 
                     // i=63 (BaseDataVariableType) maps to DTDL telemetry
@@ -110,6 +140,7 @@ namespace OPCUA2DTDL
                     // NodeClass == Method maps to DTDL command
                     if (node.NodeClass == "Method")
                     {
+
                         DtdlContents dtdlCommand = new DtdlContents
                         {
                             Type = "Command",
@@ -117,13 +148,14 @@ namespace OPCUA2DTDL
                         };
 
                         dtdlInterface.Contents.Add(dtdlCommand);
+
                     }
 
                 }
             }
 
             // Generate expanded mode DTDL
-            if (expandedDtdl == true)
+            if (expandedDtdlMode == true)
             {
 
                 // TODO Remove hard coded ReferenceTypeId's. Support all of them.
@@ -133,37 +165,44 @@ namespace OPCUA2DTDL
 
                     foreach(var child in node.Children)
                     {
+
                         if (child.ReferenceTypeId == "i=46")
                         {
+
                             DtdlContents dtdlProperty = new DtdlContents
                             {
                                 Type = "Relationship",
                                 Name = "HasProperty",
-                                Target = _dtmiPrefix + child.DisplayName + ";1"
+                                Target = dtmiPrefix + child.DisplayName + ";1"
                             };
 
                             dtdlInterface.Contents.Add(dtdlProperty);
+
                         }
 
                         if (child.ReferenceTypeId == "i=47")
                         {
+
                             DtdlContents dtdlTelemetry = new DtdlContents
                             {
                                 Type = "Relationship",
                                 Name = "HasComponent",
-                                Target = _dtmiPrefix + child.DisplayName + ";1"
+                                Target = dtmiPrefix + child.DisplayName + ";1"
                             };
 
                             dtdlInterface.Contents.Add(dtdlTelemetry);
+
                         }
                     }
                 }
 
                 if(node.Children.Count == 0)
                 {
+
                     // i=68 (PropertyType) maps to DTDL property
                     if (node.TypeDefinition == "i=68")
                     {
+
                         DtdlContents dtdlProperty = new DtdlContents
                         {
                             Type = "Property",
@@ -172,11 +211,13 @@ namespace OPCUA2DTDL
                         };
 
                         dtdlInterface.Contents.Add(dtdlProperty);
+
                     }
 
                     // i=63 (BaseDataVariableType) maps to DTDL telemetry
                     if (node.TypeDefinition == "i=63")
                     {
+
                         DtdlContents dtdlTelemetry = new DtdlContents
                         {
                             Type = "Telemetry",
@@ -185,11 +226,13 @@ namespace OPCUA2DTDL
                         };
 
                         dtdlInterface.Contents.Add(dtdlTelemetry);
+
                     }
 
                     // NodeClass == Method maps to DTDL command
                     if (node.NodeClass == "Method")
                     {
+
                         DtdlContents dtdlCommand = new DtdlContents
                         {
                             Type = "Command",
@@ -197,26 +240,10 @@ namespace OPCUA2DTDL
                         };
 
                         dtdlInterface.Contents.Add(dtdlCommand);
+
                     }
                 }
- 
-
             }
-
-            /*
-            if (node.DisplayName == "FolderType")
-            {
-
-                DtdlContents dtdlRelationship = new DtdlContents
-                {
-                    Type = "Relationship",
-                    Name = "Organizes"
-                };
-
-                dtdlInterface.Contents.Add(dtdlRelationship);
-
-            }
-            */
 
             _map.Clear();
 
@@ -224,13 +251,18 @@ namespace OPCUA2DTDL
 
         }
 
-        public static DtdlInterface GenerateSampleDTDL()
+        /// <summary>
+        /// Generates a sample DTDL interface
+        /// </summary>
+        /// <param name="dtmiPrefix">DTMI prefix</param>
+        /// <returns>DtdlInterface</returns>
+        public static DtdlInterface GenerateSampleDTDL(string dtmiPrefix)
         {
 
             // Create Interface
             DtdlInterface dtdlInterface = new DtdlInterface
             {
-                Id = _dtmiPrefix + "sample_interface;1",
+                Id = dtmiPrefix + "sample_interface;1",
                 Type = "Interface",
                 DisplayName = "",
                 Contents = new List<DtdlContents>(),
@@ -297,6 +329,11 @@ namespace OPCUA2DTDL
 
         }
         
+        /// <summary>
+        /// Gets a DTDL primitive data type from a OPC UA data type
+        /// </summary>
+        /// <param name="id">OPC UA data type e.g. Int64</param>
+        /// <returns>DTDL data type</returns>
         public static string GetDtdlDataType(string id)
         {
 

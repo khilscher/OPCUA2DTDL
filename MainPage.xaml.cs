@@ -1,32 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
-
-using Opc.Ua;
 using Opc.Ua.Client;
-using Opc.Ua.Configuration;
 using Windows.UI.Core;
 using muxc = Microsoft.UI.Xaml.Controls;
-using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using OPCUA2DTDL.Models;
 using Newtonsoft.Json;
 using Microsoft.Azure.DigitalTwins.Parser;
-using Newtonsoft.Json.Linq;
 using Azure.DigitalTwins.Core;
-using Windows.UI.Composition;
+using Azure.Identity;
+using Azure;
+using System.Net.Http;
+
 
 // https://docs.microsoft.com/en-us/windows/uwp/design/layout/
 
@@ -38,13 +27,15 @@ namespace OPCUA2DTDL
     public sealed partial class MainPage : Page
     {
         private const string _appName = "OPCUA2DTDL";
+        private static string _dtmiPrefix = "dtmi:com:example:";
         private OpcUaClient _client;
         private OpcUaNodeList _dataSource = new OpcUaNodeList();
-        private static List<DtdlInterface> _interfaceList = new List<DtdlInterface>();      // List of DTDL Interfaces
-        private static string _endpointURL;
+        private static List<DtdlInterface> _interfaceList = new List<DtdlInterface>();
+        private static string _opcUaEndpointURL;
         private OpcUaNodeList _children = new OpcUaNodeList();
         private bool _isExpandedDtdlMode = false;
         private bool _autoAccept = true;
+        private OpcUaNode _selectedNode;
 
         public MainPage()
         {
@@ -58,7 +49,7 @@ namespace OPCUA2DTDL
             btnConnect.IsEnabled = false;
             ProgressRing.IsActive = true;
             this.OpcUaNodeTree.RootNodes.Clear();
-            _endpointURL = txtBoxOpcServer.Text;
+            _opcUaEndpointURL = txtBoxOpcServer.Text;
             _dataSource.Clear();
             _children.Clear();
 
@@ -87,7 +78,7 @@ namespace OPCUA2DTDL
 
             int stopTimeout = Timeout.Infinite;
 
-            _client = new OpcUaClient(_endpointURL, _autoAccept, stopTimeout, _appName);
+            _client = new OpcUaClient(_opcUaEndpointURL, _autoAccept, stopTimeout, _appName);
 
             NotifyUser("Connecting...");
 
@@ -110,96 +101,40 @@ namespace OPCUA2DTDL
         private void OpcUaNodeTree_ItemInvoked(muxc.TreeView sender, muxc.TreeViewItemInvokedEventArgs args)
         {
 
-            OpcUaNode selectedNode = (OpcUaNode)args.InvokedItem;
-
-            //List<NodeReferenceData> nodeRefs = client.BrowseReferences(selectedNode.NodeId);
+            _selectedNode = (OpcUaNode)args.InvokedItem;
 
             // Display the node's properties in the console window when user clicks on the node
             NotifyUser("**********************************************************************************************************************");
-            NotifyUser($"BrowseName: {selectedNode.BrowseName}");
-            NotifyUser($"DisplayName: {selectedNode.DisplayName}");
-            NotifyUser($"NodeId: {selectedNode.NodeId}");
-            NotifyUser($"NodeClass: {selectedNode.NodeClass}");
-            NotifyUser($"DataType: {selectedNode.DataType}");
-            NotifyUser($"Child Count: {selectedNode.Children.Count}");
-            NotifyUser($"ReferenceTypeId: {selectedNode.ReferenceTypeId} {OpcUaClient.GetNameFromNodeId(selectedNode.ReferenceTypeId)}");
-            NotifyUser($"TypeDefinition: {selectedNode.TypeDefinition} {OpcUaClient.GetNameFromNodeId(selectedNode.TypeDefinition)}");
+            NotifyUser($"BrowseName: {_selectedNode.BrowseName}");
+            NotifyUser($"DisplayName: {_selectedNode.DisplayName}");
+            NotifyUser($"NodeId: {_selectedNode.NodeId}");
+            NotifyUser($"NodeClass: {_selectedNode.NodeClass}");
+            NotifyUser($"DataType: {_selectedNode.DataType}");
+            NotifyUser($"Child Count: {_selectedNode.Children.Count}");
+            NotifyUser($"ReferenceTypeId: {_selectedNode.ReferenceTypeId} Name: {OpcUaClient.GetTypeDefinition(_selectedNode.ReferenceTypeId)}");
+            NotifyUser($"TypeDefinitionId: {_selectedNode.TypeDefinition} Name: {OpcUaClient.GetTypeDefinition(_selectedNode.TypeDefinition)}");
             NotifyUser("**********************************************************************************************************************");
 
-            // If text box contains json, load json from text box into list
-            if (txtBoxDTDL.Text.Length != 0)
-            {
-                _interfaceList.AddRange(JsonConvert.DeserializeObject<List<DtdlInterface>>(txtBoxDTDL.Text));
-            }
-
-            // Generate the DTDL for selected node
-            DtdlInterface dtdl = DTDL.GenerateDTDL(selectedNode, _isExpandedDtdlMode);
-
-            // Add DTDL to the list of Interfaces
-            _interfaceList.Add(dtdl);
-
-            // Display list in text box
-            txtBoxDTDL.Text = JsonConvert.SerializeObject(_interfaceList, Formatting.Indented);
-
-            // Clear list
-            _interfaceList.Clear();
-
         }
-
-        /*
-        private void GetChildNodes(OpcUaNode currentNode, OpcUaNode targetNode)
-        {
-
-            if (currentNode.NodeId == targetNode.NodeId)
-            {
-
-                int numOfChildren = currentNode.Children.Count;
-
-                for (int i=0; i < numOfChildren; i++)
-                {
-
-                    if(IsVariableOrMethod(currentNode.Children[i]))
-                    {
-
-                        children.Add(currentNode.Children[i]);
-
-                    }
-
-                }
-
-            }
-            else
-            {
-
-                int numOfChildren = currentNode.Children.Count;
-
-                for (int i = 0; i < numOfChildren; i++)
-                {
-
-                    GetChildNodes(currentNode.Children[i], targetNode);
-
-                }
-
-            }
-
-        }
-        */
-
-        /*
+       
         private bool IsVariableOrMethod(OpcUaNode node)
         {
+
             if(node.NodeClass == "Variable" || node.NodeClass == "Method")
             {
+
                 return true;
+
             }
             else
             {
-                return false;
-            }
-        }
-        */
 
-        // Display message in console textbox
+                return false;
+
+            }
+
+        }
+        
         public void NotifyUser(string strMessage)
         {
             // If called from the UI thread, then update immediately.
@@ -303,7 +238,7 @@ namespace OPCUA2DTDL
 
         }
 
-        private void btnAdd_Click(object sender, RoutedEventArgs e)
+        private void btnAddSampleInterface_Click(object sender, RoutedEventArgs e)
         {
 
             // If text box contains json, load json from text box into list
@@ -315,7 +250,7 @@ namespace OPCUA2DTDL
             }
 
             // Generate DTDL for selected tree node and add to list
-            var dtdl = DTDL.GenerateSampleDTDL();
+            var dtdl = DTDL.GenerateSampleDTDL(_dtmiPrefix);
             _interfaceList.Add(dtdl);
 
             // Display list in text box
@@ -326,8 +261,48 @@ namespace OPCUA2DTDL
 
         }
 
+        private void btnConvertNodeToDtdl_Click(object sender, RoutedEventArgs e)
+        {
+
+            if (_selectedNode != null)
+            {
+
+                if(IsVariableOrMethod(_selectedNode) && _isExpandedDtdlMode == false)
+                {
+
+                    NotifyUser("Select this node's parent or enable expanded mode to convert individual Properties, Variables, or Methods to DTDL Interfaces.");
+
+                    return;
+
+                }
+
+                // If text box contains json, load json from text box into list
+                if (txtBoxDTDL.Text.Length != 0)
+                {
+
+                    _interfaceList.AddRange(JsonConvert.DeserializeObject<List<DtdlInterface>>(txtBoxDTDL.Text));
+
+                }
+
+                // Generate the DTDL for selected node
+                DtdlInterface dtdl = DTDL.GenerateDTDL(_selectedNode, _isExpandedDtdlMode, _dtmiPrefix);
+
+                // Add DTDL to the list of Interfaces
+                _interfaceList.Add(dtdl);
+
+                // Display list in text box
+                txtBoxDTDL.Text = JsonConvert.SerializeObject(_interfaceList, Formatting.Indented);
+
+                // Clear list
+                _interfaceList.Clear();
+
+            }
+
+        }
+
         private void btnCollapsedExpandedToggle_Click(object sender, RoutedEventArgs e)
         {
+
             if (btnCollapsedExpandedToggle.IsChecked == true)
             {
 
@@ -344,5 +319,14 @@ namespace OPCUA2DTDL
             }
 
         }
+
+        private void btnUploadToAdt_Click(object sender, RoutedEventArgs e)
+        {
+
+            NotifyUser("Not yet implemented");
+
+        }
+
     }
+
 }

@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Opc.Ua;
 using Opc.Ua.Client;
@@ -33,8 +31,7 @@ namespace OPCUA2DTDL
     {
 
         private string _appName;
-        private const int _reconnectPeriod = 10;
-        private Session _session;
+        private static Session _session;
         private string _endpointURL;
         private int _clientRunTime = Timeout.Infinite;
         private static bool _autoAccept = false;
@@ -42,6 +39,13 @@ namespace OPCUA2DTDL
         private OpcUaNodeList _list = new OpcUaNodeList();
         private static Dictionary<string, string> _map = new Dictionary<string, string>();
 
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="endpointURL"></param>
+        /// <param name="autoAccept"></param>
+        /// <param name="stopTimeout"></param>
+        /// <param name="appName"></param>
         public OpcUaClient(string endpointURL, bool autoAccept, int stopTimeout, string appName)
         {
 
@@ -52,15 +56,12 @@ namespace OPCUA2DTDL
 
         }
 
-        static OpcUaClient()
-        {
-
-            CreateSchemaMap();
-
-        }
-
         public static ExitCode ExitCode { get => _exitCode; }
 
+        /// <summary>
+        /// Connects to an OPC UA server endpoint URL
+        /// </summary>
+        /// <returns></returns>
         public async Task<Session> Connect()
         {
 
@@ -95,7 +96,7 @@ namespace OPCUA2DTDL
                 
                 if (config.SecurityConfiguration.AutoAcceptUntrustedCertificates)
                 {
-                    // TODO - Fix this section. Should be passed into constructor
+                    // TODO - Fix this section. 
                     _autoAccept = true;
 
                 }
@@ -124,6 +125,10 @@ namespace OPCUA2DTDL
 
         }
 
+        /// <summary>
+        /// Browse the top level OPC UA structure under \Root
+        /// </summary>
+        /// <returns></returns>
         public async Task<OpcUaNodeList> Browse()
         {
 
@@ -169,8 +174,14 @@ namespace OPCUA2DTDL
             return _list;
         }
 
+        /// <summary>
+        /// Browse the next level OPC UA structure
+        /// </summary>
+        /// <param name="nodeid"></param>
+        /// <param name="item"></param>
         public void BrowseNext(NodeId nodeid, OpcUaNode item)
         {
+
             _exitCode = ExitCode.ErrorBrowseNamespace;
             ReferenceDescriptionCollection references;
             Byte[] continuationPoint;
@@ -217,61 +228,12 @@ namespace OPCUA2DTDL
             }
         }
 
-        // TODO - Remove this method and NodeReferenceModel.cs
-        public List<NodeReferenceData> BrowseReferences(NodeId startId)
-        {
-            List<NodeReferenceData> nodeRefs = new List<NodeReferenceData>();
-
-            if (NodeId.IsNull(startId))
-            {
-                return nodeRefs;
-            }
-
-            Browser browser = new Browser(_session);
-
-            browser.BrowseDirection = BrowseDirection.Forward;
-            browser.ContinueUntilDone = true;
-            browser.ReferenceTypeId = ReferenceTypeIds.HierarchicalReferences;
-
-            foreach (ReferenceDescription reference in browser.Browse(startId))
-            {
-                Node target = _session.NodeCache.Find(reference.NodeId) as Node;
-
-                if (target == null)
-                {
-                    continue;
-                }
-
-                ReferenceTypeNode referenceType = _session.NodeCache.Find(reference.ReferenceTypeId) as ReferenceTypeNode;
-
-                Node typeDefinition = null;
-
-                if ((target.NodeClass & (NodeClass.Variable | NodeClass.Method)) != 0)
-                {
-                    typeDefinition = _session.NodeCache.Find(reference.TypeDefinition) as Node;
-                }
-                else
-                {
-                    typeDefinition = _session.NodeCache.Find(_session.NodeCache.TypeTree.FindSuperType(target.NodeId)) as Node;
-                }
-
-                NodeReferenceData nodeRef = new NodeReferenceData
-                {
-                    ReferenceType = referenceType,
-                    IsInverse = !reference.IsForward,
-                    Target = target,
-                    TypeDefinition = typeDefinition
-                };
-
-                if ((target.NodeClass & (NodeClass.Variable | NodeClass.Method)) != 0)
-                {
-                    nodeRefs.Add(nodeRef);
-                }
-            }
-
-            return nodeRefs;
-        }
-
+        /// <summary>
+        /// Get the OPC UA data type
+        /// </summary>
+        /// <param name="session"></param>
+        /// <param name="nodeId"></param>
+        /// <returns></returns>
         private string GetDataType(Session session, NodeId nodeId)
         {
 
@@ -315,6 +277,11 @@ namespace OPCUA2DTDL
 
         }
 
+        /// <summary>
+        /// Validate the cert
+        /// </summary>
+        /// <param name="validator"></param>
+        /// <param name="e"></param>
         private static void CertificateValidator_CertificateValidation(CertificateValidator validator, CertificateValidationEventArgs e)
         {
 
@@ -340,36 +307,26 @@ namespace OPCUA2DTDL
 
         }
 
-        private static void CreateSchemaMap()
+        /// <summary>
+        /// Get the type definition for a node id
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public static string GetTypeDefinition(NodeId id)
         {
 
-            // TODO See if there's a way to resolve names using the OPC UA SDK
-            _map.Add("i=35", "Organizes");
-            _map.Add("i=40", "HasTypeDefinition");
-            _map.Add("i=46", "HasProperty");
-            _map.Add("i=47", "HasComponent");
-            _map.Add("i=61", "FolderType");
-            _map.Add("i=62", "BaseVariableType");
-            _map.Add("i=63", "BaseDataVariableType");
-            _map.Add("i=68", "PropertyType");
+            string name = "Unknown";
 
-        }
+            var typeDefinition = _session.NodeCache.Find(ExpandedNodeId.ToNodeId(id, _session.NamespaceUris)) as Node;
 
-        public static string GetNameFromNodeId(string id)
-        {
-
-            try
+            if (typeDefinition != null)
             {
 
-                return _map[id];
+                name = typeDefinition.ToString();
 
             }
-            catch
-            {
 
-                return "Unknown";
-
-            }
+            return name;
 
         }
 
