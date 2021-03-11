@@ -49,7 +49,7 @@ namespace OPCUA2DTDL.Models
         public List<DtdlContents> Contents { get; set; }
 
         [JsonProperty("@context")]
-        public string Context { get; } = "dtmi:dtdl:context;2";
+        public string[] Context { get; set; } = { "dtmi:dtdl:context;2" };
 
         [JsonProperty("extends", NullValueHandling = NullValueHandling.Ignore)]
 

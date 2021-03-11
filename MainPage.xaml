@@ -49,12 +49,13 @@
         </Grid>
 
 
-            <CommandBar Grid.Column = "1" Grid.Row = "1" Background="Transparent" IsOpen="False" DefaultLabelPosition="Right" HorizontalAlignment="Left">
-                <AppBarButton Icon="Download" Label="Convert Node to DTDL" Click="btnConvertNodeToDtdl_Click"/>
-                <AppBarButton Icon="Add" Label="Add Sample Interface" Click="btnAddSampleInterface_Click"/>
-                <AppBarButton Icon="Clear" Label="Clear" Click="btnClear_Click"/>
-                <AppBarButton Icon="Accept" Label="Validate DTDL" Click="btnValidate_Click"/>
+        <CommandBar Grid.Column = "1" Grid.Row = "1" Background="Transparent" IsOpen="False" DefaultLabelPosition="Right" HorizontalAlignment="Left">
+            <AppBarButton Icon="Download" Label="Convert Node to DTDL" Click="btnConvertNodeToDtdl_Click"/>
+            <AppBarButton Icon="Add" Label="Add Sample Interface" Click="btnAddSampleInterface_Click"/>
+            <AppBarButton Icon="Clear" Label="Clear" Click="btnClear_Click"/>
+            <AppBarButton Icon="Accept" Label="Validate DTDL" Click="btnValidate_Click"/>
             <AppBarButton Icon="Upload" Label="Upload to ADT" Click="btnUploadToAdt_Click"/>
+            <AppBarButton Icon="Download" Label="Download from ADT" Click="btnDownloadFromAdt_Click"/>
             <AppBarToggleButton x:Name="btnCollapsedExpandedToggle" Icon="BackToWindow" Label="Collapsed DTDL" Click="btnCollapsedExpandedToggle_Click"/>
         </CommandBar>
 

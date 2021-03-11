@@ -11,10 +11,16 @@ using System.Threading.Tasks;
 using OPCUA2DTDL.Models;
 using Newtonsoft.Json;
 using Microsoft.Azure.DigitalTwins.Parser;
-using Azure.DigitalTwins.Core;
-using Azure.Identity;
-using Azure;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net;
+using System.Collections.Specialized;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;  // ADAL
+using System.Text;
+using Newtonsoft.Json.Linq;
+using System.Linq;
+using Windows.UI.ViewManagement;
+using Windows.Foundation;
 
 
 // https://docs.microsoft.com/en-us/windows/uwp/design/layout/
@@ -26,9 +32,9 @@ namespace OPCUA2DTDL
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private const string _appName = "OPCUA2DTDL";
-        private static string _dtmiPrefix = "dtmi:com:example:";
-        private OpcUaClient _client;
+
+        // Do not edit
+        private static OpcUaClient _opcUaClient;
         private OpcUaNodeList _dataSource = new OpcUaNodeList();
         private static List<DtdlInterface> _interfaceList = new List<DtdlInterface>();
         private static string _opcUaEndpointURL;
@@ -36,11 +42,33 @@ namespace OPCUA2DTDL
         private bool _isExpandedDtdlMode = false;
         private bool _autoAccept = true;
         private OpcUaNode _selectedNode;
+        private string _authority = "https://login.microsoftonline.com";
+        private string _resource = "0b07f429-9f4b-4714-9392-cc5e8e80c8b0"; // ADT resource id. Do not change.
+        private static HttpClient _httpClient = new HttpClient();
+
+        // Edit these as needed
+        private const string _appName = "OPCUA2DTDL";
+        private static string _dtmiPrefix = "dtmi:com:example:";
+
+        // Fill in your ADT instance URL  
+        private string _adtInstanceUrl = "https://<yourinstance>.digitaltwins.azure.net";
+
+        // Fill in with your AAD app registration.
+        //   See https://docs.microsoft.com/en-us/azure/digital-twins/how-to-create-app-registration
+        // Ensure your app has "Azure Digital Twins Data Owner" permissions to your ADT instance
+        private string _tenantId = "";
+        private string _clientId = "";
+        private string _secret = "";
+
 
         public MainPage()
         {
 
             this.InitializeComponent();
+
+            // Set preferred window size
+            ApplicationView.PreferredLaunchViewSize = new Size(1400, 800);
+            ApplicationView.PreferredLaunchWindowingMode = ApplicationViewWindowingMode.PreferredLaunchViewSize;
 
         }
 
@@ -78,11 +106,11 @@ namespace OPCUA2DTDL
 
             int stopTimeout = Timeout.Infinite;
 
-            _client = new OpcUaClient(_opcUaEndpointURL, _autoAccept, stopTimeout, _appName);
+            _opcUaClient = new OpcUaClient(_opcUaEndpointURL, _autoAccept, stopTimeout, _appName);
 
             NotifyUser("Connecting...");
 
-            Session opcsession = await _client.Connect();
+            Session opcsession = await _opcUaClient.Connect();
 
             if (opcsession.Connected)
             {
@@ -92,7 +120,7 @@ namespace OPCUA2DTDL
                 NotifyUser("Browsing nodes...");
 
                 // https://docs.microsoft.com/en-us/windows/winui/api/microsoft.ui.xaml.controls.treeview?view=winui-2.5
-                _dataSource = await _client.Browse();
+                _dataSource = await _opcUaClient.Browse();
 
             }
 
@@ -116,11 +144,11 @@ namespace OPCUA2DTDL
             NotifyUser("**********************************************************************************************************************");
 
         }
-       
+
         private bool IsVariableOrMethod(OpcUaNode node)
         {
 
-            if(node.NodeClass == "Variable" || node.NodeClass == "Method")
+            if (node.NodeClass == "Variable" || node.NodeClass == "Method")
             {
 
                 return true;
@@ -134,7 +162,7 @@ namespace OPCUA2DTDL
             }
 
         }
-        
+
         public void NotifyUser(string strMessage)
         {
             // If called from the UI thread, then update immediately.
@@ -196,7 +224,7 @@ namespace OPCUA2DTDL
                 List<string> model = new List<string>();
 
                 model.Add(json);
-                
+
                 IReadOnlyDictionary<Dtmi, DTEntityInfo> parseTask = modelParser.ParseAsync(model).GetAwaiter().GetResult();
 
                 NotifyUser($"Validation passed");
@@ -267,7 +295,7 @@ namespace OPCUA2DTDL
             if (_selectedNode != null)
             {
 
-                if(IsVariableOrMethod(_selectedNode) && _isExpandedDtdlMode == false)
+                if (IsVariableOrMethod(_selectedNode) && _isExpandedDtdlMode == false)
                 {
 
                     NotifyUser("Select this node's parent or enable expanded mode to convert individual Properties, Variables, or Methods to DTDL Interfaces.");
@@ -320,10 +348,90 @@ namespace OPCUA2DTDL
 
         }
 
-        private void btnUploadToAdt_Click(object sender, RoutedEventArgs e)
+        private async void btnUploadToAdt_Click(object sender, RoutedEventArgs e)
         {
 
-            NotifyUser("Not yet implemented");
+            try
+            {
+
+                // ADAL - TODO Replace with MSAL PublicClientApplication
+                var credentials = new ClientCredential(_clientId, _secret);
+                var authContext = new AuthenticationContext($"{_authority}/{_tenantId}");
+                var result = await authContext.AcquireTokenAsync(_resource, credentials);
+
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.AccessToken);
+
+                string content = txtBoxDTDL.Text.ToString();
+                var buffer = Encoding.UTF8.GetBytes(content);
+                var byteContent = new ByteArrayContent(buffer);
+                byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                var response = await _httpClient.PostAsync($"{_adtInstanceUrl}/models?api-version=2020-10-31", byteContent);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    NotifyUser($"Model upload successful.");
+                }
+                else
+                {
+                    NotifyUser($"Model upload error: {response.StatusCode}");
+                }
+            }
+            catch(Exception ex)
+            {
+
+                NotifyUser($"{ex.Message}");
+
+            }
+
+        }
+
+        private async void btnDownloadFromAdt_Click(object sender, RoutedEventArgs e)
+        {
+
+            try
+            {
+                // ADAL - TODO Replace with MSAL PublicClientApplication
+                var credentials = new ClientCredential(_clientId, _secret);
+                var authContext = new AuthenticationContext($"{_authority}/{_tenantId}");
+                var result = await authContext.AcquireTokenAsync(_resource, credentials);
+
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.AccessToken);
+
+                string json = await _httpClient.GetStringAsync($"{_adtInstanceUrl}/models?includeModelDefinition=true&api-version=2020-10-31");
+
+                if(!String.IsNullOrEmpty(json))
+                {
+
+                    JObject jObject = JObject.Parse(json);
+
+                    // Get JSON result objects into a list
+                    IList<JToken> results = jObject["value"].Children().ToList();
+
+                    IList<DtdlInterface> resultsList = new List<DtdlInterface>();
+
+                    foreach (JToken r in results)
+                    {
+                        JObject inner = r["model"].Value<JObject>();
+                        _interfaceList.Add(inner.ToObject<DtdlInterface>());
+                    }
+
+                    txtBoxDTDL.Text = JsonConvert.SerializeObject(_interfaceList, Formatting.Indented);
+
+                    // Clear list
+                    _interfaceList.Clear();
+
+                    NotifyUser($"Model download complete.");
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                NotifyUser($"{ex.Message}");
+
+            }
 
         }
 
