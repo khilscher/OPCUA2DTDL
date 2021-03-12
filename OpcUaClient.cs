@@ -93,16 +93,16 @@ namespace OPCUA2DTDL
             {
 
                 config.ApplicationUri = Utils.GetApplicationUriFromCertificate(config.SecurityConfiguration.ApplicationCertificate.Certificate);
-                
+
                 if (config.SecurityConfiguration.AutoAcceptUntrustedCertificates)
                 {
-                    // TODO - Fix this section. 
+                    // TODO - Fix this section.
                     _autoAccept = true;
 
                 }
 
                 config.CertificateValidator.CertificateValidation += new CertificateValidationEventHandler(CertificateValidator_CertificateValidation);
-            
+
             }
             else
             {
@@ -129,7 +129,7 @@ namespace OPCUA2DTDL
         /// Browse the top level OPC UA structure under \Root
         /// </summary>
         /// <returns></returns>
-        public async Task<OpcUaNodeList> Browse()
+        public Task<OpcUaNodeList> Browse()
         {
 
             _exitCode = ExitCode.ErrorBrowseNamespace;
@@ -140,12 +140,12 @@ namespace OPCUA2DTDL
             _session.Browse(
                 null,
                 null,
-                ObjectIds.RootFolder, 
+                ObjectIds.RootFolder,
                 0u,
                 BrowseDirection.Forward,
                 ReferenceTypeIds.HierarchicalReferences,
                 true,
-                (uint)NodeClass.Variable | (uint)NodeClass.Object | (uint)NodeClass.Method | (uint)NodeClass.DataType | (uint)NodeClass.ObjectType | (uint)NodeClass.ReferenceType | (uint)NodeClass.VariableType, 
+                (uint)NodeClass.Variable | (uint)NodeClass.Object | (uint)NodeClass.Method | (uint)NodeClass.DataType | (uint)NodeClass.ObjectType | (uint)NodeClass.ReferenceType | (uint)NodeClass.VariableType,
                 out continuationPoint,
                 out references);
 
@@ -171,7 +171,7 @@ namespace OPCUA2DTDL
 
             }
 
-            return _list;
+            return Task.FromResult(_list);
         }
 
         /// <summary>
@@ -192,7 +192,7 @@ namespace OPCUA2DTDL
                 nodeid,
                 0u,
                 BrowseDirection.Forward,
-                ReferenceTypeIds.HierarchicalReferences, 
+                ReferenceTypeIds.HierarchicalReferences,
                 true,
                 (uint)NodeClass.Variable | (uint)NodeClass.Object | (uint)NodeClass.Method | (uint)NodeClass.DataType | (uint)NodeClass.ObjectType | (uint)NodeClass.ReferenceType | (uint)NodeClass.VariableType,
                 out continuationPoint,
@@ -203,7 +203,7 @@ namespace OPCUA2DTDL
 
                 try
                 {
-                    
+
                     OpcUaNode childItem = new OpcUaNode();
                     childItem.DisplayName = rd.DisplayName.ToString();
                     childItem.BrowseName = rd.BrowseName.ToString();
